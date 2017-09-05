@@ -18,6 +18,45 @@ function h(type, props, ...children) {
 	return { type, props, children: flatten(children) };
 }
 
+function removeProp(target, name, value) {
+	if (name === 'className') {
+		return target.removeAttribute('class');
+	}
+
+	target.removeAttribute(name);
+}
+
+function patchProps(parent, patches) {
+	for (let i = 0; i < patches.length; i++) {
+		const propPatch = patches[i];
+		const { type, name, value } = propPatch;
+		if (type === SET_PROP) {
+			setProp(parent, name, value);
+		} else if (type === REMOVE_PROP) {
+			removeProp(parent, name, value);
+		}
+	}
+}
+
+function diffProps(newNode, oldNode) {
+	const patches = [];
+	const props = Object.assign({}, newNode.props, oldNode.props);
+	Object.keys(props).forEach(name => {
+		const newVal = newNode.props[name];
+		const oldVal = oldNode.props[name];
+		// if no new val, remove the property
+		if (!newVal) {
+			patches.push({ type: REMOVE_PROP, name, value: oldVal });
+		}
+		// else if no old val, or the value changed, just replace it.
+		else if (!oldVal || newVal !== oldVal) {
+				patches.push({ type: SET_PROP, name, value: newVal });
+			}
+	});
+
+	return patches;
+}
+
 function view(count) {
 	const arr = [...Array(count).keys()];
 
@@ -100,7 +139,9 @@ function patch(parent, patches, index = 0) {
 		case UPDATE:
 			{
 				// apply
-				const { children } = patches;
+				const { children, props } = patches;
+				patchProps(el, props);
+
 				for (let i = 0; i < children.length; ++i) {
 					console.log('children', children[i], el);
 					patch(el, children[i], i);
@@ -139,7 +180,11 @@ function diff(newNode, oldNode) {
 	}
 	if (newNode.type) {
 		// if there is a type, aka not a string, update.	
-		return { type: UPDATE, children: diffChildren(newNode, oldNode) };
+		return {
+			type: UPDATE,
+			children: diffChildren(newNode, oldNode),
+			props: diffProps(newNode, oldNode)
+		};
 	}
 }
 
